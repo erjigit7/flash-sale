@@ -9,6 +9,7 @@ import { OrdersModule } from './orders/orders.module.js';
 import { MailModule } from './mail/mail.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
+import { ShopModule } from './shop/shop.module.js';
 import { WorkersModule } from './workers/workers.module.js';
 import { HealthController } from './health/health.controller.js';
 
@@ -24,6 +25,7 @@ import { HealthController } from './health/health.controller.js';
     MailModule,
     NotificationsModule,
     RealtimeModule,
+    ShopModule,
     WorkersModule,
   ],
   controllers: [HealthController],

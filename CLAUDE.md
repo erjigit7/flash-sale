@@ -22,12 +22,29 @@
 
 ## Команды
 
-> Раздел дополняется по мере появления скриптов.
-
 ```bash
-docker compose up --build                      # весь стек
-docker compose --profile test run --rm tests   # все e2e-тесты бэкенда на реальном Postgres
+docker compose up --build                                            # весь стек (или: npm run up)
+docker compose --profile test run --rm --build --use-aliases tests   # все e2e-тесты бэкенда в контейнере (или: npm test)
+
+# локально, при поднятом compose (тесты сами возьмут БД flashsale_test, заглушку :4000, Mailpit :8025)
+cd backend && npm run test:e2e
+cd backend && npx vitest run --config ./vitest.config.e2e.ts test/race-last-unit.e2e-spec.ts   # один файл
+
+cd backend && npx prisma migrate dev --name <имя>   # новая миграция (CHECK/частичные индексы — дописывать SQL руками)
+cd backend && npx tsc --noEmit -p tsconfig.json     # проверка типов
+cd payment-stub && npx tsc --noEmit                 # проверка типов заглушки
 ```
+
+`--use-aliases` обязателен: заглушка оплаты шлёт webhook на `http://tests:3100`, а контейнер `docker compose run` без этого флага не получает DNS-имя сервиса.
+
+## Где что лежит (backend/src)
+
+- `reservations/reservations.repository.ts`: атомарный резерв, возврат остатка, истечение удержания.
+- `orders/orders.repository.ts`: идемпотентный checkout, outbox отправки в платёжку, `applyPaymentResult`.
+- `sales/sale-finalizer.service.ts`: уборка после окончания распродажи. `sales/sale-scheduler.service.ts`: таймеры старта и конца.
+- `mail/mail.service.ts`: отправка писем из outbox.
+- `realtime/realtime.gateway.ts`: Socket.IO, пересылает доменные события (`events/domain-events.ts`) в комнаты.
+- `workers/workers.service.ts`: все фоновые циклы и их периоды.
 
 ## Жёсткие правила (не нарушать)
 

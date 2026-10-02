@@ -75,7 +75,8 @@ services:
       backend:
         condition: service_healthy
 
-  # e2e-тесты бэкенда: docker compose --profile test run --rm tests
+  # e2e-тесты бэкенда: docker compose --profile test run --rm --build --use-aliases tests
+  # (--use-aliases: заглушка оплаты шлёт webhook на http://tests:3100 — контейнеру run нужен DNS-алиас сервиса)
   # Бэкенд поднимается внутри процесса тестов на отдельной БД flashsale_test;
   # заглушка оплаты и Mailpit — настоящие сервисы этого compose.
   tests:
