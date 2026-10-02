@@ -7,6 +7,6 @@
     "down": "docker compose down",
     "reset": "docker compose down -v",
     "test": "docker compose --profile test run --rm --build --use-aliases tests",
-    "test:e2e": "docker compose --profile e2e run --rm --build e2e"
+    "test:e2e": "node scripts/run-e2e.mjs"
   }
 }

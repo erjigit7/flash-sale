@@ -111,8 +111,8 @@ services:
       payment-stub:
         condition: service_healthy
 
-  # браузерные e2e (Playwright, две вкладки = два browser context) против поднятого стека:
-  # docker compose --profile e2e run --rm --build e2e
+  # браузерные e2e (Playwright, две вкладки = два browser context):
+  # node scripts/run-e2e.mjs — поднимает ОТДЕЛЬНЫЙ стек с коротким удержанием и сносит его после прогона
   e2e:
     profiles: [e2e]
     build: ./e2e
@@ -121,6 +121,8 @@ services:
       PAYMENT_STUB_URL: http://payment-stub:4000
       MAILPIT_API_URL: http://mailpit:8025
       SHOP_PASSWORD: ${SHOP_PASSWORD:-shop}
+      # тесту нужно знать время удержания, с которым запущен бэкенд (см. scripts/run-e2e.mjs)
+      HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-600}
     depends_on:
       frontend:
         condition: service_healthy
