@@ -1,0 +1,11 @@
+# Windows-разработка, Linux-контейнеры: всегда LF, иначе CRLF ломает скрипты в контейнерах
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary

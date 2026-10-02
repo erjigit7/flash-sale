@@ -1,0 +1,30 @@
+# deps
+node_modules/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# env (defaults live in docker-compose.yml, see .env.example)
+.env
+.env.*
+!.env.example
+
+# tests
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# logs / OS / editors
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# локальные настройки агента (личные разрешения)
+.claude/settings.local.json
