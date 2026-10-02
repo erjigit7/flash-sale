@@ -1,0 +1,180 @@
+// Схема БД флэш-распродажи.
+// Prisma описывает таблицы и обычные индексы. CHECK-ограничения и частичный
+// уникальный индекс Prisma не выражает, они добавлены сырым SQL в миграции.
+// Критичные изменения остатка и статусов делаются условными UPDATE через $queryRaw (см. *.repository.ts).
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  BUYER
+  SHOP
+}
+
+/// Жизненный цикл позиции корзины (удержания товара)
+enum ReservationStatus {
+  ACTIVE // в корзине, удерживается до expires_at
+  CHECKOUT // оплата начата: держится до ответа платёжки, expirer не трогает
+  PURCHASED // оплачено
+  EXPIRED // удержание истекло, товар вернулся на витрину
+  RELEASED // покупатель убрал из корзины или оплата отклонена
+  CANCELLED // распродажа закончилась до оплаты
+}
+
+enum OrderStatus {
+  PENDING // ждём ответа платёжки (в том числе если она «зависла»)
+  PAID
+  FAILED
+}
+
+/// Тестовый сценарий, который покупатель выбирает для заглушки оплаты
+enum PaymentScenario {
+  SUCCESS
+  DECLINE
+  HANG
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String   @unique
+  name      String
+  role      UserRole @default(BUYER)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  reservations  Reservation[]
+  orders        Order[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Sale {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Стабильный ключ для идемпотентного seed (у созданных в UI распродаж — null)
+  slug          String?   @unique
+  title         String
+  description   String    @default("")
+  imageUrl      String?   @map("image_url")
+  priceCents    Int       @map("price_cents")
+  oldPriceCents Int?      @map("old_price_cents")
+  totalQty      Int       @map("total_qty")
+  /// Остаток на витрине. Меняется только атомарным условным UPDATE.
+  available     Int
+  /// Снято с продажи по окончании (непроданное)
+  withdrawnQty  Int       @default(0) @map("withdrawn_qty")
+  maxPerOrder   Int       @default(1) @map("max_per_order")
+  startsAt      DateTime  @map("starts_at") @db.Timestamptz(3)
+  endsAt        DateTime  @map("ends_at") @db.Timestamptz(3)
+  /// Когда отработала уборка после окончания (снятие остатка, очистка корзин)
+  finalizedAt   DateTime? @map("finalized_at") @db.Timestamptz(3)
+  /// Растёт при каждом изменении остатка: клиент отбрасывает устаревшие realtime-события
+  version       Int       @default(0)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  reservations Reservation[]
+  orders       Order[]
+
+  @@index([startsAt])
+  @@index([endsAt])
+  @@map("sales")
+}
+
+model Reservation {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  saleId         String            @map("sale_id") @db.Uuid
+  userId         String            @map("user_id") @db.Uuid
+  quantity       Int
+  unitPriceCents Int               @map("unit_price_cents")
+  status         ReservationStatus @default(ACTIVE)
+  expiresAt      DateTime          @map("expires_at") @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  sale  Sale   @relation(fields: [saleId], references: [id])
+  user  User   @relation(fields: [userId], references: [id])
+  order Order?
+
+  @@index([status, expiresAt])
+  @@index([saleId, status])
+  @@index([userId, createdAt])
+  @@map("reservations")
+}
+
+model Order {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Одна позиция корзины — не больше одного заказа
+  reservationId     String          @unique @map("reservation_id") @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  saleId            String          @map("sale_id") @db.Uuid
+  quantity          Int
+  amountCents       Int             @map("amount_cents")
+  status            OrderStatus     @default(PENDING)
+  scenario          PaymentScenario
+  /// Ключ из заголовка Idempotency-Key: повтор запроса возвращает тот же заказ
+  idempotencyKey    String          @map("idempotency_key")
+  /// id платежа у провайдера; null — запрос в платёжку ещё не принят
+  providerPaymentId String?         @unique @map("provider_payment_id")
+  paymentAttempts   Int             @default(0) @map("payment_attempts")
+  nextAttemptAt     DateTime        @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  failedReason      String?         @map("failed_reason")
+  resolvedAt        DateTime?       @map("resolved_at") @db.Timestamptz(3)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  reservation Reservation @relation(fields: [reservationId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+  sale        Sale        @relation(fields: [saleId], references: [id])
+
+  @@unique([userId, idempotencyKey])
+  @@index([status, nextAttemptAt])
+  @@index([saleId, status])
+  @@map("orders")
+}
+
+/// Outbox писем: запись создаётся в той же транзакции, что и событие; dedup_key гарантирует «одно письмо на событие»
+model EmailOutbox {
+  id        String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dedupKey  String      @unique @map("dedup_key")
+  toEmail   String      @map("to_email")
+  subject   String
+  body      String
+  status    EmailStatus @default(PENDING)
+  attempts  Int         @default(0)
+  lastError String?     @map("last_error")
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  sentAt    DateTime?   @map("sent_at") @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@map("email_outbox")
+}
+
+/// Уведомления в кабинете покупателя (дублируются тостом по сокету)
+model Notification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  dedupKey  String    @unique @map("dedup_key")
+  type      String
+  title     String
+  body      String
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  readAt    DateTime? @map("read_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}

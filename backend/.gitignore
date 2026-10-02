@@ -1,0 +1,2 @@
+# Prisma Client генерируется командой prisma generate (prebuild / pretest)
+src/generated/
