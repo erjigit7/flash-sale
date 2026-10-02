@@ -32,7 +32,8 @@ export function SaleCard({ sale, inCart }: { sale: Sale; inCart: boolean }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [qty, setQty] = useState(1);
-  const [error, setError] = useState<string | null>(null);
+  // ошибка относится к конкретному состоянию карточки: сменился остаток или фаза — старая ошибка уже неактуальна
+  const [errorState, setErrorState] = useState<{ text: string; at: string } | null>(null);
 
   // подсветка остатка при изменении (видно, что обновилось «само», без перезагрузки)
   const [flash, setFlash] = useState(false);
@@ -46,14 +47,15 @@ export function SaleCard({ sale, inCart }: { sale: Sale; inCart: boolean }) {
     }
   }, [sale.available]);
 
+  // выбранное количество не больше того, что можно взять сейчас (вычисляем при рендере, без эффекта)
   const maxQty = Math.max(1, Math.min(sale.maxPerOrder, sale.available));
-  useEffect(() => {
-    if (qty > maxQty) setQty(maxQty);
-  }, [qty, maxQty]);
-  useEffect(() => setError(null), [sale.available, phase]);
+  const effectiveQty = Math.min(qty, maxQty);
+  const stateKey = `${sale.available}:${phase}`;
+  const error = errorState?.at === stateKey ? errorState.text : null;
+  const setError = (text: string | null) => setErrorState(text ? { text, at: stateKey } : null);
 
   const reserve = useMutation({
-    mutationFn: () => api.reserve(sale.id, qty),
+    mutationFn: () => api.reserve(sale.id, effectiveQty),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['cart'] });
       toast(`«${sale.title}» в корзине — товар удерживается за вами 10 минут`, 'success');
@@ -140,7 +142,7 @@ export function SaleCard({ sale, inCart }: { sale: Sale; inCart: boolean }) {
         </div>
         <div className="buy-row">
           {phase === 'LIVE' && sale.available > 0 && !inCart && sale.maxPerOrder > 1 && (
-            <select value={qty} onChange={(e) => setQty(Number(e.target.value))} aria-label="Количество">
+            <select value={effectiveQty} onChange={(e) => setQty(Number(e.target.value))} aria-label="Количество">
               {Array.from({ length: maxQty }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>
                   {n} шт.
