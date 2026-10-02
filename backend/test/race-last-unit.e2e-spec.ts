@@ -53,8 +53,10 @@ describe('гонка за остаток', () => {
   });
 
   it('просят 3, осталось 2 → отказ целиком, без частичной продажи; клиенту сообщают остаток', async () => {
-    const saleId = await createSale(t.prisma, { totalQty: 2, maxPerOrder: 3 });
-    const [u] = await buyers(1);
+    // партия 5, лимит 3: первый забрал 3 — осталось 2
+    const saleId = await createSale(t.prisma, { totalQty: 5, maxPerOrder: 3 });
+    const [first, u] = await buyers(2);
+    await reserve(first.token, saleId, 3).expect(201);
 
     const res = await reserve(u.token, saleId, 3).expect(409);
     expect(res.body).toMatchObject({ error: 'insufficient_stock', available: 2 });
@@ -62,6 +64,7 @@ describe('гонка за остаток', () => {
 
     await reserve(u.token, saleId, 2).expect(201);
     expect((await saleRow(t.prisma, saleId)).available).toBe(0);
+    await expectStockInvariant(t.prisma, saleId);
   });
 
   it('больше лимита «в одни руки» → 400 qty_over_limit, остаток не тронут', async () => {

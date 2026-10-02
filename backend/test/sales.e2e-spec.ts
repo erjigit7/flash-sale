@@ -49,6 +49,40 @@ describe('распродажи: создание и витрина', () => {
     expect(bad2.body.error).toBe('invalid_start');
   });
 
+  describe('правила формы магазина проверяет сервер (не только фронт)', () => {
+    const base = { title: 'Товар', priceCents: 1000_00, totalQty: 5, maxPerOrder: 1, startsInSeconds: 60, durationSeconds: 600 };
+    const create = async (body: object) =>
+      t.http().post('/api/shop/sales').set('Authorization', `Bearer ${await loginShop(t)}`).send({ ...base, ...body });
+
+    it('старая цена ниже или равна новой → 400 invalid_old_price, распродажа не создаётся', async () => {
+      for (const oldPriceCents of [999_00, 1000_00]) {
+        const res = await create({ oldPriceCents });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('invalid_old_price');
+      }
+      expect(await t.prisma.sale.count()).toBe(0);
+      await create({ oldPriceCents: 1000_01 }).then((r) => expect(r.status).toBe(201));
+      await create({}).then((r) => expect(r.status).toBe(201)); // старая цена необязательна
+    });
+
+    it('лимит «в одни руки» больше партии → 400 invalid_max_per_order; равный партии — можно', async () => {
+      const res = await create({ totalQty: 3, maxPerOrder: 4 });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('invalid_max_per_order');
+      expect(await t.prisma.sale.count()).toBe(0);
+      await create({ totalQty: 3, maxPerOrder: 3 }).then((r) => expect(r.status).toBe(201));
+    });
+
+    it('в обход сервиса БД сама не даст записать такие значения (CHECK-ограничения)', async () => {
+      const insert = (oldPrice: number | null, maxPerOrder: number) => t.prisma.$executeRaw`
+        INSERT INTO sales (title, price_cents, old_price_cents, total_qty, available, max_per_order, starts_at, ends_at)
+        VALUES ('x', 1000, ${oldPrice}, 3, 3, ${maxPerOrder}, now(), now() + interval '1 hour')`;
+      await expect(insert(500, 1)).rejects.toThrow(/sales_old_price_above_price/);
+      await expect(insert(null, 4)).rejects.toThrow(/sales_max_per_order_within_total/);
+      expect(await t.prisma.sale.count()).toBe(0);
+    });
+  });
+
   it('витрина: статус считается по часам БД, идущие — первыми', async () => {
     const upcoming = await createSale(t.prisma, { startsIn: 120, endsIn: 600 });
     const live = await createSale(t.prisma, { startsIn: -10, endsIn: 600 });
