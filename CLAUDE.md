@@ -36,7 +36,8 @@ cd payment-stub && npx tsc --noEmit                 # проверка типо�
 cd payment-stub && npm test                         # тесты хранилища заглушки (node:test)
 
 node scripts/check-restarts.mjs                     # рестарты вживую (стек поднят): заглушка, SIGKILL, бэкенд
-docker compose --profile e2e run --rm --build e2e   # браузерные e2e Playwright (или: npm run test:e2e)
+node scripts/run-e2e.mjs                            # браузерные e2e Playwright (или: npm run test:e2e) на отдельном стеке
+                                                    # flash-sale-e2e (свои порты/данные, HOLD_TTL_SECONDS=15), сносится после прогона
 ```
 
 Заглушка хранит платежи в `/data/payments.json` (volume `stubdata`). `docker compose down -v` (`npm run reset`) чистит и её.
