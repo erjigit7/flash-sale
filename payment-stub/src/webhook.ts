@@ -6,6 +6,8 @@ export interface WebhookOptions {
   maxAttempts: number;
   baseDelayMs: number;
   log: (msg: string) => void;
+  /** Вызывается после каждой попытки — чтобы состояние доставки пережило рестарт */
+  onChange: () => void;
 }
 
 export function sign(body: string, secret: string): string {
@@ -16,6 +18,7 @@ export function sign(body: string, secret: string): string {
  * Доставка webhook как у настоящих провайдеров — at-least-once:
  * повторяем, пока получатель не ответит 2xx (экспоненциальная пауза). Значит, получатель
  * обязан быть идемпотентным: один и тот же результат может прийти несколько раз.
+ * Если заглушку перезапустят посреди повторов, недоставленный webhook отправится снова после старта.
  */
 export async function deliverWebhook(payment: Payment, opts: WebhookOptions): Promise<void> {
   const body = JSON.stringify({
@@ -26,6 +29,7 @@ export async function deliverWebhook(payment: Payment, opts: WebhookOptions): Pr
     resolvedAt: payment.resolvedAt,
   });
   const signature = sign(body, opts.secret);
+  payment.webhook.gaveUp = false;
 
   for (let attempt = 1; attempt <= opts.maxAttempts; attempt++) {
     payment.webhook.deliveries++;
@@ -40,6 +44,7 @@ export async function deliverWebhook(payment: Payment, opts: WebhookOptions): Pr
       payment.webhook.lastStatus = res.status;
       if (res.ok) {
         payment.webhook.delivered = true;
+        opts.onChange();
         return;
       }
       opts.log(`webhook ${payment.id} attempt ${attempt}: HTTP ${res.status}`);
@@ -47,7 +52,10 @@ export async function deliverWebhook(payment: Payment, opts: WebhookOptions): Pr
       payment.webhook.lastStatus = 'network_error';
       opts.log(`webhook ${payment.id} attempt ${attempt}: ${(error as Error).message}`);
     }
+    opts.onChange();
     await new Promise((r) => setTimeout(r, opts.baseDelayMs * 2 ** (attempt - 1)));
   }
+  payment.webhook.gaveUp = true;
+  opts.onChange();
   opts.log(`webhook ${payment.id}: giving up after ${opts.maxAttempts} attempts`);
 }

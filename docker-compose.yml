@@ -44,6 +44,9 @@ services:
       WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-dev-only-webhook-secret}
     ports:
       - "${PAYMENT_STUB_PORT:-4000}:4000"
+    volumes:
+      # платежи провайдера переживают рестарт и пересоздание контейнера (как у настоящего провайдера)
+      - stubdata:/data
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 2s
@@ -126,3 +129,4 @@ services:
 
 volumes:
   pgdata:
+  stubdata:

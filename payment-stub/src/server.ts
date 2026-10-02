@@ -12,10 +12,11 @@ import { panelHtml } from './panel.ts';
  *  POST /payments/:id/redeliver   — повторно отправить webhook (демонстрация идемпотентности получателя)
  *  GET  /                         — HTML-панель
  * Сценарии: SUCCESS и DECLINE отвечают webhook'ом через RESPONSE_DELAY_MS, HANG — молчит до ручного решения.
+ * Платежи хранятся на диске (DATA_FILE, в compose — volume): рестарт заглушки не теряет принятый платёж.
  */
 const port = Number(process.env.PORT ?? 4000);
 const responseDelayMs = Number(process.env.RESPONSE_DELAY_MS ?? 1500);
-const webhookOptions: Omit<WebhookOptions, 'log'> = {
+const webhookOptions: Omit<WebhookOptions, 'log' | 'onChange'> = {
   secret: process.env.WEBHOOK_SECRET ?? 'dev-only-webhook-secret',
   maxAttempts: Number(process.env.WEBHOOK_MAX_ATTEMPTS ?? 8),
   baseDelayMs: Number(process.env.WEBHOOK_BASE_DELAY_MS ?? 500),
@@ -24,13 +25,47 @@ const webhookOptions: Omit<WebhookOptions, 'log'> = {
 const SCENARIOS: Scenario[] = ['SUCCESS', 'DECLINE', 'HANG'];
 
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
-const store = new PaymentStore();
+const store = new PaymentStore({
+  filePath: process.env.DATA_FILE ?? './data/payments.json',
+  retentionMs: Number(process.env.RETENTION_HOURS ?? 24) * 3600_000,
+});
 const log = (msg: string) => app.log.info(msg);
 
 function sendWebhook(paymentId: string) {
   const payment = store.get(paymentId);
   if (!payment) return;
-  void deliverWebhook(payment, { ...webhookOptions, log });
+  deliverWebhook(payment, { ...webhookOptions, log, onChange: () => store.save() }).catch((e: unknown) =>
+    app.log.error(`webhook ${paymentId} failed: ${(e as Error).message}`),
+  );
+}
+
+/** SUCCESS/DECLINE: «банк отвечает» через responseDelayMs после создания платежа. */
+function scheduleAutoResolve(paymentId: string) {
+  const payment = store.get(paymentId);
+  if (!payment || payment.scenario === 'HANG' || payment.status !== 'processing') return;
+  const delay = Math.max(0, Date.parse(payment.createdAt) + responseDelayMs - Date.now());
+  setTimeout(() => {
+    if (store.resolve(payment.id, payment.scenario === 'SUCCESS' ? 'succeeded' : 'declined')) sendWebhook(payment.id);
+  }, delay);
+}
+
+/**
+ * Восстановление после рестарта: таймеры и незавершённые доставки жили в памяти.
+ * HANG продолжает «висеть» (тот же платёж ждёт решения в панели), SUCCESS/DECLINE досчитываются,
+ * недоставленные webhook отправляются снова (получатель идемпотентен).
+ */
+function recover() {
+  let resumed = 0;
+  for (const p of store.list()) {
+    if (p.status === 'processing' && p.scenario !== 'HANG') {
+      scheduleAutoResolve(p.id);
+      resumed++;
+    } else if (p.status !== 'processing' && !p.webhook.delivered && !p.webhook.gaveUp) {
+      sendWebhook(p.id);
+      resumed++;
+    }
+  }
+  log(`loaded ${store.list().length} payments from disk, resumed ${resumed}`);
 }
 
 app.get('/health', async () => ({ status: 'ok' }));
@@ -61,11 +96,7 @@ app.post<{
     return reply.code(200).send({ paymentId: payment.id, status: payment.status, idempotentReplay: true });
   }
 
-  if (scenario !== 'HANG') {
-    setTimeout(() => {
-      if (store.resolve(payment.id, scenario === 'SUCCESS' ? 'succeeded' : 'declined')) sendWebhook(payment.id);
-    }, responseDelayMs);
-  }
+  scheduleAutoResolve(payment.id);
   log(`payment ${payment.id} created: key=${idempotencyKey} amount=${amountCents} scenario=${scenario}`);
   return reply.code(202).send({ paymentId: payment.id, status: payment.status });
 });
@@ -106,4 +137,5 @@ app.post<{ Params: { id: string } }>('/payments/:id/redeliver', async (req, repl
   return { paymentId: p.id, redelivering: true };
 });
 
+recover();
 await app.listen({ port, host: '0.0.0.0' });
