@@ -1,12 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SaleCard } from '../components/SaleCard.tsx';
 import { api } from '../lib/api.ts';
+import { fetchSalesKeepingNewerStock } from '../lib/realtime.ts';
 import { useSession } from '../lib/session.ts';
 
 export function ShowcasePage() {
   const session = useSession();
   const buyer = session?.user.role === 'BUYER';
-  const sales = useQuery({ queryKey: ['sales'], queryFn: api.sales });
+  const qc = useQueryClient();
+  const sales = useQuery({ queryKey: ['sales'], queryFn: () => fetchSalesKeepingNewerStock(qc) });
   const cart = useQuery({ queryKey: ['cart'], queryFn: api.cart, enabled: buyer });
   const inCart = new Set((cart.data?.items ?? []).filter((i) => i.status === 'ACTIVE' || i.status === 'CHECKOUT').map((i) => i.saleId));
 

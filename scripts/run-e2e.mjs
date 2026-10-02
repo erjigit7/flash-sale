@@ -26,7 +26,9 @@ const compose = (args) => spawnSync('docker', ['compose', ...args], { stdio: 'in
 
 let code = 1;
 try {
-  code = compose(['--profile', 'e2e', 'run', '--rm', '--build', 'e2e']);
+  // явная сборка всех образов: `run --build` не гарантирует пересборку уже существующих образов зависимостей
+  code = compose(['--profile', 'e2e', 'build']);
+  if (code === 0) code = compose(['--profile', 'e2e', 'run', '--rm', 'e2e']);
 } finally {
   if (process.env.KEEP_E2E_STACK !== '1') compose(['--profile', 'e2e', 'down', '-v', '--remove-orphans']);
 }

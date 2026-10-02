@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
+import { api } from './api.ts';
 import { serverClock } from './clock.ts';
 import { useSession } from './session.ts';
 import { toast } from './toast.ts';
@@ -44,13 +45,34 @@ async function syncClock(s: Socket) {
  * события могут прийти не по порядку, а версия на сервере растёт монотонно.
  */
 function applyStock(qc: QueryClient, e: StockEvent) {
-  qc.setQueryData<{ serverTime: string; sales: Sale[] }>(['sales'], (prev) => {
+  qc.setQueryData<SalesData>(['sales'], (prev) => {
     if (!prev) return prev;
     return {
       ...prev,
       sales: prev.sales.map((s) => (s.id === e.saleId && e.version > s.version ? { ...s, available: e.available, version: e.version } : s)),
     };
   });
+}
+
+type SalesData = { serverTime: string; sales: Sale[] };
+
+/**
+ * Загрузка витрины без отката остатков. Запрос мог уйти ДО изменения, а ответ прийти ПОСЛЕ того, как
+ * sale:stock уже принёс более новый остаток. Поэтому при получении ответа для каждой распродажи
+ * оставляем ту версию остатка, что новее: из ответа или из кэша (версия на сервере растёт монотонно).
+ */
+export async function fetchSalesKeepingNewerStock(qc: QueryClient): Promise<SalesData> {
+  const fresh = await api.sales();
+  const cached = qc.getQueryData<SalesData>(['sales']);
+  if (!cached) return fresh;
+  const newer = new Map(cached.sales.map((s) => [s.id, s]));
+  return {
+    ...fresh,
+    sales: fresh.sales.map((s) => {
+      const c = newer.get(s.id);
+      return c && c.version > s.version ? { ...s, available: c.available, version: c.version } : s;
+    }),
+  };
 }
 
 /**
