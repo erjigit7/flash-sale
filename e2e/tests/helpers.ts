@@ -8,8 +8,15 @@ export function uniqueEmail(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}@example.com`;
 }
 
-/** Магазин создаёт распродажу через API (старт — смещение от часов сервера). */
+/** Время удержания, с которым запущен бэкенд (scripts/run-e2e.mjs ставит 15 с). */
+export const HOLD_TTL_SECONDS = Number(process.env.HOLD_TTL_SECONDS ?? 600);
+
 export async function createSale(opts: { title: string; totalQty: number; startsInSeconds: number; durationSeconds?: number }) {
+  return (await createSaleFull(opts)).id;
+}
+
+/** Магазин создаёт распродажу через API (старт — смещение от часов сервера). */
+export async function createSaleFull(opts: { title: string; totalQty: number; startsInSeconds: number; durationSeconds?: number }) {
   const login = await fetch(`${API()}/auth/shop-login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -30,7 +37,7 @@ export async function createSale(opts: { title: string; totalQty: number; starts
     }),
   });
   expect(res.status).toBe(201);
-  return ((await res.json()) as { id: string }).id;
+  return (await res.json()) as { id: string; startsAt: string; endsAt: string };
 }
 
 /** Отдельный browser context = отдельная «вкладка» со своей sessionStorage и своим покупателем. */
