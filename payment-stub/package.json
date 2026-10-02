@@ -1,0 +1,22 @@
+{
+  "name": "payment-stub",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Заглушка платёжного провайдера: success / decline / hang, идемпотентность по ключу, webhook с HMAC",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.ts",
+    "dev": "node --watch src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "fastify": "^5.12.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "typescript": "~6.0.3"
+  }
+}
