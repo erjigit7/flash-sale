@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } fro
 import { AppConfig } from '../config/app-config.js';
 import { ReservationsService } from '../reservations/reservations.service.js';
 import { SaleScheduler } from '../sales/sale-scheduler.service.js';
+import { SaleFinalizer } from '../sales/sale-finalizer.service.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { MailService } from '../mail/mail.service.js';
 
@@ -19,6 +20,7 @@ export class WorkersService implements OnApplicationBootstrap, OnApplicationShut
     private readonly config: AppConfig,
     private readonly reservations: ReservationsService,
     private readonly scheduler: SaleScheduler,
+    private readonly finalizer: SaleFinalizer,
     private readonly orders: OrdersService,
     private readonly mail: MailService,
   ) {}
@@ -33,6 +35,8 @@ export class WorkersService implements OnApplicationBootstrap, OnApplicationShut
     // Точные таймеры на старт/конец распродаж (realtime-сигнал витрине); окно — 60 с вперёд
     void this.scheduler.planUpcoming();
     this.every('sale-scheduler', 5000, () => this.scheduler.planUpcoming());
+    // По окончании: снять непроданное, очистить неоплаченные корзины, уведомить владельцев
+    this.every('sale-finalizer', 1000, () => this.finalizer.finalizeEnded());
     // Отправка заказов в платёжку с повторами (outbox: PENDING без provider_payment_id)
     this.every('payment-dispatcher', 2000, () => this.orders.dispatch());
     // Страховка от потерянного webhook: опрос платёжки по PENDING-заказам
