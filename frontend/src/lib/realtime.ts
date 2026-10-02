@@ -74,6 +74,11 @@ export function useRealtime() {
     s.on('disconnect', () => setConnected(false));
 
     s.on('sale:stock', (e: StockEvent) => applyStock(qc, e));
+    // новая распродажа: карточка должна появиться на открытой витрине без перезагрузки
+    s.on('sale:created', () => {
+      void qc.invalidateQueries({ queryKey: ['sales'] });
+      void qc.invalidateQueries({ queryKey: ['shopStats'] });
+    });
     s.on('sale:started', () => void qc.invalidateQueries({ queryKey: ['sales'] }));
     s.on('sale:ended', () => {
       void qc.invalidateQueries({ queryKey: ['sales'] });
