@@ -108,7 +108,7 @@ label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); font-weig
 .timer { font-size: 13px; color: var(--muted); }
 .timer strong { color: var(--text); font-variant-numeric: tabular-nums; font-size: 15px; }
 .buy-row { display: flex; gap: 8px; align-items: stretch; margin-top: auto; }
-.buy-row select { width: 72px; }
+.buy-row select { width: 88px; }
 .buy-row button { flex: 1; justify-content: center; }
 .form-error { color: var(--err); font-size: 13px; }
 
