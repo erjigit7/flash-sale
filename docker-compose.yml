@@ -44,6 +44,11 @@ services:
       WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-dev-only-webhook-secret}
     ports:
       - "${PAYMENT_STUB_PORT:-4000}:4000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
   backend:
     build: ./backend
@@ -60,7 +65,7 @@ services:
       mailpit:
         condition: service_started
       payment-stub:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 3s
@@ -74,6 +79,12 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      # 127.0.0.1, а не localhost: в alpine localhost резолвится и в ::1, а nginx слушает только IPv4
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 
   # e2e-тесты бэкенда: docker compose --profile test run --rm --build --use-aliases tests
   # (--use-aliases: заглушка оплаты шлёт webhook на http://tests:3100 — контейнеру run нужен DNS-алиас сервиса)
@@ -95,7 +106,7 @@ services:
       mailpit:
         condition: service_started
       payment-stub:
-        condition: service_started
+        condition: service_healthy
 
   # браузерные e2e (Playwright, две вкладки = два browser context) против поднятого стека:
   # docker compose --profile e2e run --rm --build e2e
@@ -109,7 +120,7 @@ services:
       SHOP_PASSWORD: ${SHOP_PASSWORD:-shop}
     depends_on:
       frontend:
-        condition: service_started
+        condition: service_healthy
       backend:
         condition: service_healthy
 

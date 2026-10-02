@@ -360,3 +360,16 @@
 - Оговорки:
   - Перезапуск **самой заглушки** теряет висящий платёж, у неё хранилище в памяти. Тогда reconciler получит 404 и переотправит заказ с тем же ключом. Заказ не теряется, но платёж снова повиснет, и его нужно будет разрешить заново.
   - **Проверено это кодом и тестами частично** (потерянный webhook, повторная отправка). Тестом с настоящим рестартом процесса не проверено.
+
+## 2026-10-02 11:28:13 +0600 — healthcheck для frontend и payment-stub [решение: заказчик]
+
+Заказчик заметил при ручной проверке: у `frontend` и `payment-stub` в compose нет healthcheck, а у остальных есть. Попросил добавить и заставить backend ждать заглушку через `condition: service_healthy`.
+
+Сделано:
+- `payment-stub`: healthcheck через `fetch('http://localhost:4000/health')` средствами node, он в образе уже есть.
+- `frontend`: в nginx добавлен `location = /healthz`, ответ даёт сам nginx без похода в бэкенд. Healthcheck `wget http://127.0.0.1/healthz`. Адрес 127.0.0.1 выбран, а не localhost: в alpine localhost резолвится и в ::1, а nginx слушает только IPv4.
+- `backend` теперь ждёт `payment-stub: service_healthy` (просьба заказчика).
+- [решение: агент] По той же логике `tests` теперь ждёт `payment-stub: service_healthy` (тестам нужна заглушка), а `e2e` ждёт `frontend: service_healthy`.
+- У `mailpit` healthcheck встроен в образ, в compose его не дублируем.
+
+Проверено: `docker compose up -d --build` → postgres и payment-stub Healthy → backend стартует и становится Healthy → frontend Healthy. `/healthz` отвечает `ok`, Playwright 2/2 зелёный.
