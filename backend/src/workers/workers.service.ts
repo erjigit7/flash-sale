@@ -3,6 +3,7 @@ import { AppConfig } from '../config/app-config.js';
 import { ReservationsService } from '../reservations/reservations.service.js';
 import { SaleScheduler } from '../sales/sale-scheduler.service.js';
 import { OrdersService } from '../orders/orders.service.js';
+import { MailService } from '../mail/mail.service.js';
 
 /**
  * Фоновые циклы в процессе бэкенда. Каждый шаг идемпотентен и безопасен при нескольких
@@ -19,6 +20,7 @@ export class WorkersService implements OnApplicationBootstrap, OnApplicationShut
     private readonly reservations: ReservationsService,
     private readonly scheduler: SaleScheduler,
     private readonly orders: OrdersService,
+    private readonly mail: MailService,
   ) {}
 
   onApplicationBootstrap() {
@@ -35,6 +37,8 @@ export class WorkersService implements OnApplicationBootstrap, OnApplicationShut
     this.every('payment-dispatcher', 2000, () => this.orders.dispatch());
     // Страховка от потерянного webhook: опрос платёжки по PENDING-заказам
     this.every('payment-reconciler', 5000, () => this.orders.reconcile());
+    // Письма из outbox — каждое ровно один раз (см. MailService)
+    this.every('mail-sender', 1000, () => this.mail.sendDue());
   }
 
   onApplicationShutdown() {
