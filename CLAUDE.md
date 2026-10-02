@@ -33,7 +33,13 @@ cd backend && npx vitest run --config ./vitest.config.e2e.ts test/race-last-unit
 cd backend && npx prisma migrate dev --name <имя>   # новая миграция (CHECK/частичные индексы — дописывать SQL руками)
 cd backend && npx tsc --noEmit -p tsconfig.json     # проверка типов
 cd payment-stub && npx tsc --noEmit                 # проверка типов заглушки
+cd payment-stub && npm test                         # тесты хранилища заглушки (node:test)
+
+node scripts/check-restarts.mjs                     # рестарты вживую (стек поднят): заглушка, SIGKILL, бэкенд
+docker compose --profile e2e run --rm --build e2e   # браузерные e2e Playwright (или: npm run test:e2e)
 ```
+
+Заглушка хранит платежи в `/data/payments.json` (volume `stubdata`). `docker compose down -v` (`npm run reset`) чистит и её.
 
 `--use-aliases` обязателен: заглушка оплаты шлёт webhook на `http://tests:3100`, а контейнер `docker compose run` без этого флага не получает DNS-имя сервиса.
 
