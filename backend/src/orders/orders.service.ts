@@ -44,7 +44,11 @@ export class OrdersService {
           saleId: outcome.order.saleId,
           status: 'PENDING',
         });
-        void this.dispatch(outcome.order.id);
+        // асинхронно: клиенту не нужно ждать платёжку. Сбой здесь не страшен — заказ остаётся в outbox,
+        // воркер повторит отправку; но и ронять процесс unhandled rejection'ом нельзя
+        this.dispatch(outcome.order.id).catch((e: unknown) =>
+          this.log.warn(`immediate dispatch of ${outcome.order.id} failed, worker will retry: ${(e as Error).message}`),
+        );
         return { order: outcome.order, replay: false };
       case 'replay':
         return { order: outcome.order, replay: true };

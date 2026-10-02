@@ -33,7 +33,7 @@ export class WorkersService implements OnApplicationBootstrap, OnApplicationShut
     // Раз в секунду: «не оплатил за 10 минут — вернулся на витрину, и остальные видят это сразу»
     this.every('hold-expirer', 1000, () => this.reservations.expireDue());
     // Точные таймеры на старт/конец распродаж (realtime-сигнал витрине); окно — 60 с вперёд
-    void this.scheduler.planUpcoming();
+    this.scheduler.planUpcoming().catch((e: unknown) => this.log.error('sale-scheduler failed', e));
     this.every('sale-scheduler', 5000, () => this.scheduler.planUpcoming());
     // По окончании: снять непроданное, очистить неоплаченные корзины, уведомить владельцев
     this.every('sale-finalizer', 1000, () => this.finalizer.finalizeEnded());

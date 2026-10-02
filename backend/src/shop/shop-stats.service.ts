@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { DomainEvents } from '../events/domain-events.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeGateway, Rooms } from '../realtime/realtime.gateway.js';
@@ -34,6 +34,7 @@ export interface SaleStats {
 @Injectable()
 export class ShopStatsService implements OnModuleInit, OnModuleDestroy {
   static readonly THROTTLE_MS = 250;
+  private readonly log = new Logger(ShopStatsService.name);
   private timer: NodeJS.Timeout | null = null;
   private readonly unsubscribe: (() => void)[] = [];
 
@@ -95,7 +96,8 @@ export class ShopStatsService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) return;
     this.timer = setTimeout(() => {
       this.timer = null;
-      void this.push();
+      // ошибка рассылки статистики не должна ронять процесс (unhandled rejection в Node — фатальна)
+      this.push().catch((e: unknown) => this.log.warn(`shop stats push failed: ${(e as Error).message}`));
     }, ShopStatsService.THROTTLE_MS);
     this.timer.unref();
   }
