@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { buyerTab, card, createSaleFull, uniqueEmail } from './helpers.ts';
+import { buyerTab, card, createSaleFull, newTabContext, uniqueEmail } from './helpers.ts';
 
 /**
  * «До старта купить нельзя, даже если страница открыта заранее. В момент старта покупка открывается у всех одновременно» —
@@ -12,7 +12,7 @@ test('часы покупателя спешат на 10 минут → кноп
   const startsAt = Date.parse(sale.startsAt);
 
   // вкладка со сбитыми часами: Date.now() в ней на 10 минут впереди, время идёт как обычно
-  const skewedContext = await browser.newContext();
+  const skewedContext = await newTabContext(browser);
   await skewedContext.clock.install({ time: Date.now() + SKEW_MS });
   const skewed = await skewedContext.newPage();
   await skewed.goto('/login');

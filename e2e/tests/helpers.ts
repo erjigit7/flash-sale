@@ -1,4 +1,19 @@
-import { expect, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+
+/**
+ * Каждый «таб» — отдельный browser context. Закрываем их после каждого теста: иначе к концу прогона
+ * открыты десятки вкладок с сокетами и таймерами, и это тормозит следующие тесты.
+ */
+const openContexts = new Set<BrowserContext>();
+export async function newTabContext(browser: Browser): Promise<BrowserContext> {
+  const context = await browser.newContext();
+  openContexts.add(context);
+  return context;
+}
+test.afterEach(async () => {
+  await Promise.all([...openContexts].map((c) => c.close()));
+  openContexts.clear();
+});
 
 export const STUB_URL = process.env.PAYMENT_STUB_URL ?? 'http://localhost:4000';
 export const MAILPIT_URL = process.env.MAILPIT_API_URL ?? 'http://localhost:8025';
@@ -42,7 +57,7 @@ export async function createSaleFull(opts: { title: string; totalQty: number; st
 
 /** Отдельный browser context = отдельная «вкладка» со своей sessionStorage и своим покупателем. */
 export async function buyerTab(browser: Browser, email: string): Promise<Page> {
-  const context = await browser.newContext();
+  const context = await newTabContext(browser);
   const page = await context.newPage();
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
@@ -52,7 +67,7 @@ export async function buyerTab(browser: Browser, email: string): Promise<Page> {
 }
 
 export async function shopTab(browser: Browser): Promise<Page> {
-  const context = await browser.newContext();
+  const context = await newTabContext(browser);
   const page = await context.newPage();
   await page.goto('/shop');
   await page.getByLabel('Пароль').fill(process.env.SHOP_PASSWORD ?? 'shop');
