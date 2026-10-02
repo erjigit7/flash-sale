@@ -13,6 +13,8 @@ export interface DomainEventMap {
   'reservation.changed': { userId: string; reservationId: string; saleId: string; status: string };
   /** Заказ сменил статус */
   'order.changed': { userId: string; orderId: string; saleId: string; status: string };
+  /** Магазин выставил новую распродажу — витрины должны показать карточку без перезагрузки */
+  'sale.created': { saleId: string };
   /** Распродажа стартовала / закончилась (момент по часам БД) */
   'sale.started': { saleId: string };
   'sale.ended': { saleId: string };

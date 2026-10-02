@@ -44,6 +44,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnMo
     const ev = this.events;
     this.unsubscribe.push(
       ev.on('stock.changed', (e) => this.server.to([Rooms.showcase, Rooms.shop]).emit('sale:stock', e)),
+      ev.on('sale.created', (e) => this.server.to([Rooms.showcase, Rooms.shop]).emit('sale:created', e)),
       ev.on('sale.started', (e) => this.server.to([Rooms.showcase, Rooms.shop]).emit('sale:started', e)),
       ev.on('sale.ended', (e) => this.server.to([Rooms.showcase, Rooms.shop]).emit('sale:ended', e)),
       ev.on('reservation.changed', (e) => this.server.to(Rooms.user(e.userId)).emit('reservation:updated', e)),

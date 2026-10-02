@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 import { AppConfig } from '../config/app-config.js';
+import { DomainEvents } from '../events/domain-events.js';
 import { SalesRepository, type SaleView } from './sales.repository.js';
 import { SaleScheduler } from './sale-scheduler.service.js';
 import type { CreateSaleDto } from './sales.dto.js';
@@ -11,6 +12,7 @@ export class SalesService {
     private readonly repo: SalesRepository,
     private readonly scheduler: SaleScheduler,
     private readonly config: AppConfig,
+    private readonly events: DomainEvents,
   ) {}
 
   list(): Promise<SaleView[]> {
@@ -54,6 +56,8 @@ export class SalesService {
       startsInSeconds: dto.startsInSeconds ?? null,
       durationSeconds: dto.durationSeconds,
     });
+    // INSERT — один оператор, к этому моменту он уже закоммичен: можно сообщать витринам
+    this.events.emit('sale.created', { saleId: sale.id });
     // распродажа «через минуту» должна получить точный таймер старта сразу, не дожидаясь цикла воркера
     if (this.config.workersEnabled) await this.scheduler.planUpcoming();
     return sale;

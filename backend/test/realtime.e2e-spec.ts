@@ -64,6 +64,28 @@ describe('realtime: две вкладки', () => {
     expect(bobReservations).toEqual([]);
   });
 
+  it('магазин создал распродажу → открытые витрины и экран магазина получают sale:created', async () => {
+    const viewer = await tab(); // покупатель на витрине, даже без входа
+    const shopToken = (await t.http().post('/api/auth/shop-login').send({ password: 'shop' })).body.token as string;
+    const shopTab = await tab(shopToken);
+
+    const seenByViewer = waitForEvent<{ saleId: string }>(viewer, 'sale:created');
+    const seenByShop = waitForEvent<{ saleId: string }>(shopTab, 'sale:created');
+    const res = await t
+      .http()
+      .post('/api/shop/sales')
+      .set('Authorization', `Bearer ${shopToken}`)
+      .send({ title: 'Новинка', priceCents: 500_00, totalQty: 3, startsInSeconds: 60, durationSeconds: 600 })
+      .expect(201);
+
+    const [a, b] = await Promise.all([seenByViewer, seenByShop]);
+    expect(a).toEqual({ saleId: res.body.id });
+    expect(b).toEqual({ saleId: res.body.id });
+    // к моменту события распродажа уже в БД: перезапрос витрины её вернёт
+    const list = await t.http().get('/api/sales').expect(200);
+    expect(list.body.sales.map((s: { id: string }) => s.id)).toContain(res.body.id);
+  });
+
   it('версии остатка монотонны: клиент может отбросить устаревшее событие', async () => {
     const saleId = await createSale(t.prisma, { totalQty: 20 });
     const viewer = await tab();

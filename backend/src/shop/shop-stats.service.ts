@@ -47,6 +47,7 @@ export class ShopStatsService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     const schedule = () => this.schedulePush();
     this.unsubscribe.push(
+      this.events.on('sale.created', schedule),
       this.events.on('stock.changed', schedule),
       this.events.on('reservation.changed', schedule),
       this.events.on('order.changed', schedule),
