@@ -2,7 +2,7 @@
 
 ## Контекст
 
-Тестовое на Agentic Developer, дедлайн 7 октября 2026. Папка `C:\Users\Admin20\Projects\flash-sale` пустая, git ещё нет.
+Тестовое на Agentic Developer, дедлайн 7 октября 2026 (2.10 заказчик перенёс срок на **5 октября**, актуальные контрольные точки — в CLAUDE.md). Папка `C:\Users\Admin20\Projects\flash-sale` пустая, git ещё нет.
 Окружение проверено: Node 24.19, npm 11.17, Docker 29.6 + Compose v5.3, git 2.55. Планирование начато 2026-10-02 09:55:57 +0600 (взято из `date`).
 
 Стек задан: NestJS + Prisma + PostgreSQL, React + Vite + TS, Socket.IO, Mailpit, своя заглушка оплаты, всё поднимается одной командой `docker compose up`.
