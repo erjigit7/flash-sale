@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { AppConfig } from '../config/app-config.js';
 import { ReservationsService } from '../reservations/reservations.service.js';
+import { SaleScheduler } from '../sales/sale-scheduler.service.js';
 
 /**
  * Фоновые циклы в процессе бэкенда. Каждый шаг идемпотентен и безопасен при нескольких
@@ -15,6 +16,7 @@ export class WorkersService implements OnApplicationBootstrap, OnApplicationShut
   constructor(
     private readonly config: AppConfig,
     private readonly reservations: ReservationsService,
+    private readonly scheduler: SaleScheduler,
   ) {}
 
   onApplicationBootstrap() {
@@ -24,6 +26,9 @@ export class WorkersService implements OnApplicationBootstrap, OnApplicationShut
     }
     // Раз в секунду: «не оплатил за 10 минут — вернулся на витрину, и остальные видят это сразу»
     this.every('hold-expirer', 1000, () => this.reservations.expireDue());
+    // Точные таймеры на старт/конец распродаж (realtime-сигнал витрине); окно — 60 с вперёд
+    void this.scheduler.planUpcoming();
+    this.every('sale-scheduler', 5000, () => this.scheduler.planUpcoming());
   }
 
   onApplicationShutdown() {

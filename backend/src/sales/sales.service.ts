@@ -1,11 +1,17 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
+import { AppConfig } from '../config/app-config.js';
 import { SalesRepository, type SaleView } from './sales.repository.js';
+import { SaleScheduler } from './sale-scheduler.service.js';
 import type { CreateSaleDto } from './sales.dto.js';
 
 @Injectable()
 export class SalesService {
-  constructor(private readonly repo: SalesRepository) {}
+  constructor(
+    private readonly repo: SalesRepository,
+    private readonly scheduler: SaleScheduler,
+    private readonly config: AppConfig,
+  ) {}
 
   list(): Promise<SaleView[]> {
     return this.repo.list();
@@ -36,7 +42,7 @@ export class SalesService {
     if (dto.oldPriceCents !== undefined && dto.oldPriceCents <= dto.priceCents) {
       throw new AppError(HttpStatus.BAD_REQUEST, 'invalid_old_price', 'Старая цена должна быть выше цены распродажи');
     }
-    return this.repo.create({
+    const sale = await this.repo.create({
       title: dto.title.trim(),
       description: dto.description?.trim() ?? '',
       imageUrl: dto.imageUrl ?? null,
@@ -48,5 +54,8 @@ export class SalesService {
       startsInSeconds: dto.startsInSeconds ?? null,
       durationSeconds: dto.durationSeconds,
     });
+    // распродажа «через минуту» должна получить точный таймер старта сразу, не дожидаясь цикла воркера
+    if (this.config.workersEnabled) await this.scheduler.planUpcoming();
+    return sale;
   }
 }
