@@ -122,7 +122,10 @@ export class OrdersRepository {
        WHERE id = ${orderId}::uuid AND provider_payment_id IS NULL`;
   }
 
-  /** Платёжка «забыла» платёж (заглушка перезапустилась) — отправим заново с тем же ключом. */
+  /**
+   * Провайдер ответил 404 на известный нам платёж — защитная ветка: отправим заново с тем же ключом.
+   * Заглушка хранит платежи на диске и после рестарта их помнит, так что в норме сюда не попадаем.
+   */
   async clearProviderPaymentId(orderId: string, providerPaymentId: string): Promise<void> {
     await this.prisma.$executeRaw`
       UPDATE orders SET provider_payment_id = NULL, next_attempt_at = now(), updated_at = now()
