@@ -8,8 +8,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './generated/prisma/client.js';
 import { AppConfig } from './config/app-config.js';
-
-export const SHOP_EMAIL = 'shop@flash-sale.local';
+import { SHOP_EMAIL } from './auth/auth.constants.js';
 
 type DemoSale = {
   slug: string;
