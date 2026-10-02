@@ -1,0 +1,11 @@
+{
+  "name": "flash-sale",
+  "private": true,
+  "description": "Флэш-распродажа: тестовое задание MadDevs. Сервисы — backend/, frontend/, payment-stub/.",
+  "scripts": {
+    "up": "docker compose up --build",
+    "down": "docker compose down",
+    "reset": "docker compose down -v",
+    "test": "docker compose --profile test run --rm --build tests"
+  }
+}

@@ -1,0 +1,100 @@
+# Весь стек одной командой: docker compose up --build
+# .env не нужен: у каждой переменной есть дефолт для локального запуска (${VAR:-default}).
+# Переопределить можно через .env рядом с этим файлом (см. .env.example).
+name: flash-sale
+
+x-backend-env: &backend-env
+  JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-change-me}
+  SHOP_PASSWORD: ${SHOP_PASSWORD:-shop}
+  HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-600}
+  PAYMENT_STUB_URL: http://payment-stub:4000
+  PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-dev-only-webhook-secret}
+  SMTP_HOST: mailpit
+  SMTP_PORT: 1025
+  MAIL_FROM: ${MAIL_FROM:-Флэш-распродажа <noreply@flash-sale.local>}
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: flashsale
+      POSTGRES_PASSWORD: flashsale
+      POSTGRES_DB: flashsale
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./docker/postgres/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flashsale -d flashsale"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.31.3
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+
+  payment-stub:
+    build: ./payment-stub
+    environment:
+      PORT: 4000
+      WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-dev-only-webhook-secret}
+    ports:
+      - "${PAYMENT_STUB_PORT:-4000}:4000"
+
+  backend:
+    build: ./backend
+    environment:
+      <<: *backend-env
+      PORT: 3000
+      DATABASE_URL: postgresql://flashsale:flashsale@postgres:5432/flashsale
+      PAYMENT_WEBHOOK_URL: http://backend:3000/api/payments/webhook
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      payment-stub:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # e2e-тесты бэкенда: docker compose --profile test run --rm tests
+  # Бэкенд поднимается внутри процесса тестов на отдельной БД flashsale_test;
+  # заглушка оплаты и Mailpit — настоящие сервисы этого compose.
+  tests:
+    profiles: [test]
+    build: ./backend
+    command: ["npm", "run", "test:e2e"]
+    environment:
+      <<: *backend-env
+      DATABASE_URL: postgresql://flashsale:flashsale@postgres:5432/flashsale_test
+      PAYMENT_WEBHOOK_URL: http://tests:3100/api/payments/webhook
+      TEST_HTTP_PORT: 3100
+      MAILPIT_API_URL: http://mailpit:8025
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      payment-stub:
+        condition: service_started
+
+volumes:
+  pgdata:
