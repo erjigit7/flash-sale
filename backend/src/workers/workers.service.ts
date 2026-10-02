@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } fro
 import { AppConfig } from '../config/app-config.js';
 import { ReservationsService } from '../reservations/reservations.service.js';
 import { SaleScheduler } from '../sales/sale-scheduler.service.js';
+import { OrdersService } from '../orders/orders.service.js';
 
 /**
  * Фоновые циклы в процессе бэкенда. Каждый шаг идемпотентен и безопасен при нескольких
@@ -17,6 +18,7 @@ export class WorkersService implements OnApplicationBootstrap, OnApplicationShut
     private readonly config: AppConfig,
     private readonly reservations: ReservationsService,
     private readonly scheduler: SaleScheduler,
+    private readonly orders: OrdersService,
   ) {}
 
   onApplicationBootstrap() {
@@ -29,6 +31,10 @@ export class WorkersService implements OnApplicationBootstrap, OnApplicationShut
     // Точные таймеры на старт/конец распродаж (realtime-сигнал витрине); окно — 60 с вперёд
     void this.scheduler.planUpcoming();
     this.every('sale-scheduler', 5000, () => this.scheduler.planUpcoming());
+    // Отправка заказов в платёжку с повторами (outbox: PENDING без provider_payment_id)
+    this.every('payment-dispatcher', 2000, () => this.orders.dispatch());
+    // Страховка от потерянного webhook: опрос платёжки по PENDING-заказам
+    this.every('payment-reconciler', 5000, () => this.orders.reconcile());
   }
 
   onApplicationShutdown() {

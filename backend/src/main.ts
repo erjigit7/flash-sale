@@ -4,7 +4,8 @@ import { configureApp } from './app.setup.js';
 import { AppConfig } from './config/app-config.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: подпись webhook платёжки проверяется по сырому телу запроса
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   configureApp(app);
   await app.listen(app.get(AppConfig).port, '0.0.0.0');
 }

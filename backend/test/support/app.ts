@@ -22,7 +22,7 @@ export interface TestApp {
  */
 export async function createTestApp(): Promise<TestApp> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = moduleRef.createNestApplication({ logger: ['error', 'warn'] });
+  const app = moduleRef.createNestApplication({ rawBody: true, logger: ['error', 'warn'] });
   configureApp(app);
   await app.listen(Number(process.env.TEST_HTTP_PORT ?? 0), '0.0.0.0');
   const { port } = app.getHttpServer().address() as { port: number };
