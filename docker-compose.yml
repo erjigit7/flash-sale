@@ -97,5 +97,21 @@ services:
       payment-stub:
         condition: service_started
 
+  # браузерные e2e (Playwright, две вкладки = два browser context) против поднятого стека:
+  # docker compose --profile e2e run --rm --build e2e
+  e2e:
+    profiles: [e2e]
+    build: ./e2e
+    environment:
+      BASE_URL: http://frontend
+      PAYMENT_STUB_URL: http://payment-stub:4000
+      MAILPIT_API_URL: http://mailpit:8025
+      SHOP_PASSWORD: ${SHOP_PASSWORD:-shop}
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
+
 volumes:
   pgdata:

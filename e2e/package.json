@@ -1,0 +1,14 @@
+{
+  "name": "flash-sale-e2e",
+  "private": true,
+  "description": "Браузерные e2e-тесты: две вкладки (два browser context) против поднятого docker compose",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^24.19.1",
+    "typescript": "~6.0.3"
+  }
+}
