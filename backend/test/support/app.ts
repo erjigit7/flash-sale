@@ -8,12 +8,15 @@ import { PrismaService } from '../../src/prisma/prisma.service.js';
 export interface TestApp {
   app: INestApplication;
   prisma: PrismaService;
+  /** Базовый URL поднятого приложения (на нём же webhook для заглушки оплаты) */
+  baseUrl: string;
   http: () => ReturnType<typeof request>;
   close: () => Promise<void>;
 }
 
 /**
- * Поднимает настоящее приложение (все модули, реальный Postgres) внутри процесса теста.
+ * Поднимает настоящее приложение (все модули, реальный Postgres) внутри процесса теста
+ * и слушает настоящий порт: TEST_HTTP_PORT — чтобы заглушка оплаты могла прислать webhook.
  * Фоновые воркеры выключены (WORKERS_ENABLED=false в vitest.config.e2e.ts): тест вызывает их сам —
  * так «время» двигается детерминированно, без sleep.
  */
@@ -21,12 +24,15 @@ export async function createTestApp(): Promise<TestApp> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication({ logger: ['error', 'warn'] });
   configureApp(app);
-  await app.init();
+  await app.listen(Number(process.env.TEST_HTTP_PORT ?? 0), '0.0.0.0');
+  const { port } = app.getHttpServer().address() as { port: number };
+  const baseUrl = `http://127.0.0.1:${port}`;
   const prisma = app.get(PrismaService);
   return {
     app,
     prisma,
-    http: () => request(app.getHttpServer()),
+    baseUrl,
+    http: () => request(baseUrl),
     close: () => app.close(),
   };
 }
