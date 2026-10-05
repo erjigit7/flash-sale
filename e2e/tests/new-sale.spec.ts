@@ -13,6 +13,7 @@ test('магазин выставил распродажу → у покупат
   const shop = await shopTab(browser);
   const title = `Новинка ${Date.now()}`;
   await shop.getByLabel('Товар').fill(title);
+  await shop.getByLabel('Количество').fill('1'); // явно, а не по значению формы по умолчанию
   await shop.getByRole('button', { name: 'Выставить на распродажу' }).click();
 
   // никакой перезагрузки у покупателя — карточка приходит по sale:created

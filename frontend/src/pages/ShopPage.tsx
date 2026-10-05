@@ -165,7 +165,6 @@ const START_PRESETS = [
 ];
 
 function CreateSaleForm() {
-  const qc = useQueryClient();
   const [form, setForm] = useState({
     title: 'Наушники Pulse Pro',
     description: '',
@@ -194,8 +193,7 @@ function CreateSaleForm() {
     onSuccess: (sale) => {
       toast(`Распродажа «${sale.title}» создана`, 'success');
       setError(null);
-      void qc.invalidateQueries({ queryKey: ['shopStats'] });
-      void qc.invalidateQueries({ queryKey: ['sales'] });
+      // витрину и статистику обновят события sale:created и shop:stats
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Сервер недоступен'),
   });
