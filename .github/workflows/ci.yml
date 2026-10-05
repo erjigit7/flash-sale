@@ -37,3 +37,16 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose --profile test down -v --remove-orphans
+
+  # браузерные тесты (Playwright, две вкладки): только после зелёных бэкенд-тестов
+  e2e-browser:
+    name: e2e-browser
+    needs: backend-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # скрипт сам поднимает отдельный стек (порты 18080 и др., удержание 15 с), гоняет Playwright и сносит стек
+      - name: Playwright e2e (isolated compose stack)
+        run: node scripts/run-e2e.mjs
