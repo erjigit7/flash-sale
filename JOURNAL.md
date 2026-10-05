@@ -580,3 +580,11 @@ Workflow `.github/workflows/ci.yml` (push и pull_request, один job `backend
 - Порты и healthcheck: тестам нужны только внутренние адреса сети compose, порты хоста не используются. Healthcheck'и (postgres, заглушка) прошли.
 - `--use-aliases` на Linux работает так же, как на Docker Desktop.
 - Из предупреждений GitHub: Node 20 в `actions/checkout@v4` принудительно запускается на Node 24, а метка `ubuntu-latest` с 19.10.2026 переедет на Ubuntu 26. Не ошибки, но образ раннера может смениться: учтено в README как оговорка не нужно, это вне проекта.
+
+## 2026-10-05 17:20:01 +0600 — CI: оба job зелёные на GitHub [агент]
+
+Добавлен второй job `e2e-browser` (`needs: backend-tests`, команда `node scripts/run-e2e.mjs` на изолированном compose-стеке). Прогон https://github.com/erjigit7/flash-sale/actions/runs/37301682458: `backend-tests` success (`61 passed (61)`), `e2e-browser` success (`9 passed (1.3m)`). Playwright на Linux тоже прошёл с первого раза, правок не потребовалось.
+
+Поправка к записи выше: последняя фраза там написана неудачно. Смысл такой: предупреждения GitHub про Node 20 и миграцию `ubuntu-latest` на Ubuntu 26 с 19.10.2026 не ошибки, их в README я не выношу.
+
+Дальше по условиям заказчика, потому что прогон зелёный на самом GitHub: бейдж CI в README и удаление пункта «нет CI» из «что не работает».
