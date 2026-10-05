@@ -1,3 +1,5 @@
+import { AppConfig } from '../src/config/app-config.js';
+import { SaleScheduler } from '../src/sales/sale-scheduler.service.js';
 import { createTestApp, loginBuyer, loginShop, resetDb, type TestApp } from './support/app.js';
 import { createSale } from './support/fixtures.js';
 
@@ -81,6 +83,29 @@ describe('распродажи: создание и витрина', () => {
       await expect(insert(null, 4)).rejects.toThrow(/sales_max_per_order_within_total/);
       expect(await t.prisma.sale.count()).toBe(0);
     });
+  });
+
+  it('сбой планирования таймера после создания не превращается в 500: распродажа уже создана и показана', async () => {
+    const config = t.app.get(AppConfig) as { workersEnabled: boolean };
+    const scheduler = t.app.get(SaleScheduler);
+    const original = scheduler.planUpcoming.bind(scheduler);
+    config.workersEnabled = true;
+    scheduler.planUpcoming = async () => {
+      throw new Error('boom');
+    };
+    try {
+      const shop = await loginShop(t);
+      const res = await t
+        .http()
+        .post('/api/shop/sales')
+        .set('Authorization', `Bearer ${shop}`)
+        .send({ title: 'Таймер упал', priceCents: 100_00, totalQty: 2, startsInSeconds: 60, durationSeconds: 600 });
+      expect(res.status).toBe(201);
+      expect(await t.prisma.sale.count()).toBe(1);
+    } finally {
+      config.workersEnabled = false;
+      scheduler.planUpcoming = original;
+    }
   });
 
   it('витрина: статус считается по часам БД, идущие — первыми', async () => {

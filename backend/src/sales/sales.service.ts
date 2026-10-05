@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { AppError } from '../common/app-error.js';
 import { AppConfig } from '../config/app-config.js';
 import { DomainEvents } from '../events/domain-events.js';
@@ -8,6 +8,8 @@ import type { CreateSaleDto } from './sales.dto.js';
 
 @Injectable()
 export class SalesService {
+  private readonly log = new Logger(SalesService.name);
+
   constructor(
     private readonly repo: SalesRepository,
     private readonly scheduler: SaleScheduler,
@@ -59,7 +61,11 @@ export class SalesService {
     // INSERT — один оператор, к этому моменту он уже закоммичен: можно сообщать витринам
     this.events.emit('sale.created', { saleId: sale.id });
     // распродажа «через минуту» должна получить точный таймер старта сразу, не дожидаясь цикла воркера
-    if (this.config.workersEnabled) await this.scheduler.planUpcoming();
+    // распродажа уже в БД и показана всем: сбой планирования не должен превращаться в 500 (повтор дал бы дубль);
+    // таймер всё равно поставит цикл воркера
+    if (this.config.workersEnabled) {
+      await this.scheduler.planUpcoming().catch((e: unknown) => this.log.warn(`planUpcoming failed: ${(e as Error).message}`));
+    }
     return sale;
   }
 }
